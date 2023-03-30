@@ -21,6 +21,7 @@ import {
   encodePageCursor,
   PgSearchEngine,
   PgSearchHighlightOptions,
+  PgSearchTranslatorOptions,
 } from './PgSearchEngine';
 import { PgSearchEngineIndexer } from './PgSearchEngineIndexer';
 
@@ -34,6 +35,10 @@ const highlightOptions: PgSearchHighlightOptions = {
   highlightAll: false,
   maxFragments: 0,
   fragmentDelimiter: ' ... ',
+};
+
+const translatorOptions: PgSearchTranslatorOptions = {
+  includeQueryWithRemovedSpaces: false,
 };
 
 jest.mock('uuid', () => ({ v4: () => 'tag' }));
@@ -52,6 +57,7 @@ describe('PgSearchEngine', () => {
     search: {
       pg: {
         highlightOptions,
+        translatorOptions,
       },
     },
   };
@@ -86,7 +92,10 @@ describe('PgSearchEngine', () => {
           term: 'testTerm',
           filters: {},
         },
-        { highlightOptions },
+        {
+          highlightOptions,
+          translatorOptions,
+        },
       );
     });
 
@@ -96,7 +105,10 @@ describe('PgSearchEngine', () => {
           term: 'Hello',
           pageCursor: 'MQ==',
         },
-        { highlightOptions },
+        {
+          highlightOptions,
+          translatorOptions,
+        },
       );
 
       expect(actualTranslatedQuery).toMatchObject({
@@ -114,12 +126,39 @@ describe('PgSearchEngine', () => {
         {
           term: 'Hello World',
         },
-        { highlightOptions },
+        {
+          highlightOptions,
+          translatorOptions,
+        },
       );
 
       expect(actualTranslatedQuery).toMatchObject({
         pgQuery: {
           pgTerm: '("Hello" | "Hello":*)&("World" | "World":*)',
+          offset: 0,
+          limit: 26,
+        },
+        pageSize: 25,
+      });
+    });
+
+    it('should include search term with concatenated spaces in query term', async () => {
+      const actualTranslatedQuery = searchEngine.translator(
+        {
+          term: 'Hello World',
+        },
+        {
+          highlightOptions,
+          translatorOptions: {
+            includeQueryWithRemovedSpaces: true,
+          },
+        },
+      );
+
+      expect(actualTranslatedQuery).toMatchObject({
+        pgQuery: {
+          pgTerm:
+            '("HelloWorld" | "HelloWorld":*)|("Hello" | "Hello":*)&("World" | "World":*)',
           offset: 0,
           limit: 26,
         },
@@ -133,7 +172,10 @@ describe('PgSearchEngine', () => {
           term: 'H&e|l!l*o W\0o(r)l:d',
           pageCursor: '',
         },
-        { highlightOptions },
+        {
+          highlightOptions,
+          translatorOptions,
+        },
       ) as ConcretePgSearchQuery;
 
       expect(actualTranslatedQuery).toMatchObject({
@@ -151,7 +193,10 @@ describe('PgSearchEngine', () => {
           filters: { kind: 'testKind' },
           types: ['my-filter'],
         },
-        { highlightOptions },
+        {
+          highlightOptions,
+          translatorOptions,
+        },
       );
 
       expect(actualTranslatedQuery).toMatchObject({

@@ -45,6 +45,7 @@ export type ConcretePgSearchQuery = {
  * @public
  */
 export type PgSearchQueryTranslatorOptions = {
+  translatorOptions: PgSearchTranslatorOptions;
   highlightOptions: PgSearchHighlightOptions;
 };
 
@@ -70,6 +71,14 @@ export type PgSearchOptions = {
  * Options for highlighting search terms
  * @public
  */
+export type PgSearchTranslatorOptions = {
+  includeQueryWithRemovedSpaces?: boolean;
+};
+
+/**
+ * Options for highlighting search terms
+ * @public
+ */
 export type PgSearchHighlightOptions = {
   useHighlight?: boolean;
   maxWords?: number;
@@ -85,6 +94,7 @@ export type PgSearchHighlightOptions = {
 /** @public */
 export class PgSearchEngine implements SearchEngine {
   private readonly logger?: Logger;
+  private readonly translatorOptions: PgSearchTranslatorOptions;
   private readonly highlightOptions: PgSearchHighlightOptions;
 
   /**
@@ -98,6 +108,10 @@ export class PgSearchEngine implements SearchEngine {
     const uuidTag = uuid();
     const highlightConfig = config.getOptionalConfig(
       'search.pg.highlightOptions',
+    );
+
+    const translatorConfig = config.getOptionalConfig(
+      'search.pg.translatorOptions',
     );
 
     const highlightOptions: PgSearchHighlightOptions = {
@@ -114,6 +128,14 @@ export class PgSearchEngine implements SearchEngine {
         highlightConfig?.getOptionalString('fragmentDelimiter') ?? ' ... ',
     };
     this.highlightOptions = highlightOptions;
+
+    const translatorOptions: PgSearchTranslatorOptions = {
+      includeQueryWithRemovedSpaces:
+        translatorConfig?.getOptionalBoolean('includeQueryWithRemovedSpaces') ??
+        false,
+    };
+    this.translatorOptions = translatorOptions;
+
     this.logger = logger;
   }
 
@@ -154,14 +176,26 @@ export class PgSearchEngine implements SearchEngine {
     // We request more result to know whether there is another page
     const limit = pageSize + 1;
 
+    let queryTerm = query.term
+      .split(/\s/)
+      .map(p => p.replace(/[\0()|&:*!]/g, '').trim())
+      .filter(p => p !== '')
+      .map(p => `(${JSON.stringify(p)} | ${JSON.stringify(p)}:*)`)
+      .join('&');
+
+    if (
+      options.translatorOptions?.includeQueryWithRemovedSpaces &&
+      query.term.trim().includes(' ')
+    ) {
+      const queryTermWithRemovedSpaces = JSON.stringify(
+        query.term.replace(/\s/g, ''),
+      );
+      queryTerm = `(${queryTermWithRemovedSpaces} | ${queryTermWithRemovedSpaces}:*)|${queryTerm}`;
+    }
+
     return {
       pgQuery: {
-        pgTerm: query.term
-          .split(/\s/)
-          .map(p => p.replace(/[\0()|&:*!]/g, '').trim())
-          .filter(p => p !== '')
-          .map(p => `(${JSON.stringify(p)} | ${JSON.stringify(p)}:*)`)
-          .join('&'),
+        pgTerm: queryTerm,
         fields: query.filters as Record<string, string | string[]>,
         types: query.types,
         offset,
@@ -188,6 +222,7 @@ export class PgSearchEngine implements SearchEngine {
   async query(query: SearchQuery): Promise<IndexableResultSet> {
     const { pgQuery, pageSize } = this.translator(query, {
       highlightOptions: this.highlightOptions,
+      translatorOptions: this.translatorOptions,
     });
 
     const rows = await this.databaseStore.transaction(async tx =>

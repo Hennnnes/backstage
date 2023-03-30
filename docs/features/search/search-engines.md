@@ -83,6 +83,8 @@ search:
       highlightAll: false # If true the whole document will be used as the headline, ignoring the preceding three parameters. The default is false.
       maxFragments: 0 # Maximum number of text fragments to display. The default value of zero selects a non-fragment-based headline generation method. A value greater than zero selects fragment-based headline generation (see the linked documentation above for more details).
       fragmentDelimiter: ' ... ' # Delimiter string used to concatenate fragments. Defaults to " ... ".
+    translatorOptions:
+      includeQueryWithRemovedSpaces: false # Prepend the search string without spaces if it contains some. (e.g. show results for "wayback" when searching for "wa yb ack")
 ```
 
 **Note:** the highlight search term feature uses `ts_headline` which has been known to potentially impact performance. You only need this minimal config to disable it should you have issues:

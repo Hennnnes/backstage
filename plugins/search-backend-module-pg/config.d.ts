@@ -57,6 +57,17 @@ export interface Config {
          */
         fragmentDelimiter?: string;
       };
+
+      /**
+       * Options to customize the translator used to transform the search term
+       */
+      translatorOptions?: {
+        /**
+         * Prepend the search term without spaces if it contains some. This will show results for "wayback" when searching for "way ba ck".
+         * The default is false.
+         */
+        includeQueryWithRemovedSpaces?: boolean;
+      };
     };
   };
 }
